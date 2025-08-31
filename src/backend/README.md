@@ -28,6 +28,7 @@ docker compose -f ../../dockerfiles/docker-compose.yml up backend
 - [API Routes](#-api-routes)
 - [Authentication](#-authentication)
 - [Database Schema](#-database-schema)
+- [Background Jobs](#-background-jobs)
 - [Configuration](#-configuration)
 - [Development](#-development)
 - [Testing](#-testing)
@@ -39,6 +40,7 @@ docker compose -f ../../dockerfiles/docker-compose.yml up backend
 - **Language**: Ruby 3.2.2
 - **Database**: PostgreSQL 15
 - **Authentication**: Devise 4.9.4 + Devise-JWT
+- **Background Jobs**: Redis + Sidekiq 8.0.7
 - **CORS**: rack-cors 3.0.0
 - **Web Server**: Puma 6.6.1
 
@@ -56,6 +58,10 @@ gem 'pg', '~> 1.1'
 # Authentication
 gem 'devise', '~> 4.9'
 gem 'devise-jwt', '~> 0.11.0'
+
+# Background Jobs
+gem 'redis', '>= 4.0.1'
+gem 'sidekiq', '~> 8.0'
 
 # CORS handling
 gem 'rack-cors', '~> 3.0'
@@ -84,6 +90,8 @@ end
 |-----|---------|---------|
 | **devise** | 4.9.4 | User authentication framework |
 | **devise-jwt** | 0.11.0 | JWT token management for API authentication |
+| **redis** | >= 4.0.1 | Redis client for background jobs and caching |
+| **sidekiq** | ~8.0 | Background job processing framework |
 | **rack-cors** | 3.0.0 | Cross-Origin Resource Sharing (CORS) support |
 | **pg** | ~1.1 | PostgreSQL database adapter |
 | **puma** | 6.6.1 | Multi-threaded HTTP server |
@@ -100,6 +108,11 @@ Rails.application.routes.draw do
     registrations: 'users/registrations'
   }
   
+  # Sidekiq Web Dashboard - Admin only access
+  authenticate :user, ->(user) { user.admin? } do
+    mount Sidekiq::Web => '/admin/sidekiq'
+  end
+  
   # Health check
   get "up" => "rails/health#show", as: :rails_health_check
 end
@@ -112,6 +125,9 @@ end
 | `POST` | `/users` | `registrations#create` | User registration | No |
 | `POST` | `/users/sign_in` | `sessions#create` | User login | No |
 | `DELETE` | `/users/sign_out` | `sessions#destroy` | User logout | Yes |
+| `PUT` | `/users` | `registrations#update` | Update user account | Yes |
+| `DELETE` | `/users` | `registrations#destroy` | Delete user account | Yes |
+| `GET` | `/admin/sidekiq` | `sidekiq/web` | Background jobs dashboard | Admin only |
 | `GET` | `/up` | `rails/health#show` | Health check | No |
 
 ### Request/Response Examples
@@ -261,6 +277,236 @@ end
 | `jti` | string | NOT NULL, UNIQUE | JWT identifier |
 | `exp` | datetime | NOT NULL | Token expiration time |
 
+## 📋 Background Jobs
+
+The application uses **Redis** and **Sidekiq** for background job processing, providing robust asynchronous task execution.
+
+### Overview
+
+- **Redis**: Message broker and data store for job queues
+- **Sidekiq**: Multi-threaded background job processor
+- **Admin Dashboard**: Web interface for monitoring jobs (admin-only access)
+
+### Configuration
+
+#### Sidekiq Configuration (`config/initializers/sidekiq.rb`)
+```ruby
+require 'sidekiq'
+require 'sidekiq/web'
+
+# Configure Sidekiq connections
+Sidekiq.configure_server do |config|
+  config.redis = { url: ENV.fetch('REDIS_URL', 'redis://redis:6379/0') }
+end
+
+Sidekiq.configure_client do |config|
+  config.redis = { url: ENV.fetch('REDIS_URL', 'redis://redis:6379/0') }
+end
+```
+
+#### Application Configuration (`config/application.rb`)
+```ruby
+module Backend
+  class Application < Rails::Application
+    # Use Sidekiq for background jobs
+    config.active_job.queue_adapter = :sidekiq
+  end
+end
+```
+
+### Jobs
+
+#### WelcomeEmailJob Example
+```ruby
+# app/jobs/welcome_email_job.rb
+class WelcomeEmailJob < ApplicationJob
+  queue_as :default
+
+  def perform(user_id)
+    user = User.find(user_id)
+    # Send welcome email logic here
+    Rails.logger.info "Sending welcome email to #{user.email}"
+    
+    # Simulate some work
+    sleep(2)
+    
+    Rails.logger.info "Welcome email sent to #{user.email}"
+  rescue ActiveRecord::RecordNotFound
+    Rails.logger.error "User with ID #{user_id} not found"
+  end
+end
+```
+
+### Usage Examples
+
+#### Enqueueing Jobs
+```ruby
+# Enqueue job immediately
+WelcomeEmailJob.perform_later(user.id)
+
+# Enqueue job with delay
+WelcomeEmailJob.set(wait: 5.minutes).perform_later(user.id)
+
+# Enqueue job at specific time
+WelcomeEmailJob.set(wait_until: Date.tomorrow.noon).perform_later(user.id)
+
+# Enqueue job with priority
+WelcomeEmailJob.set(priority: 10).perform_later(user.id)
+```
+
+#### Integration in Controllers
+```ruby
+# app/controllers/users/registrations_controller.rb
+class Users::RegistrationsController < Devise::RegistrationsController
+  def create
+    super do |resource|
+      if resource.persisted?
+        # Enqueue welcome email job after successful registration
+        WelcomeEmailJob.perform_later(resource.id)
+      end
+    end
+  end
+end
+```
+
+### Admin Dashboard
+
+#### Access Control
+The Sidekiq web dashboard is restricted to admin users only:
+
+```ruby
+# config/routes.rb
+authenticate :user, ->(user) { user.admin? } do
+  mount Sidekiq::Web => '/admin/sidekiq'
+end
+```
+
+#### Admin User Setup
+```bash
+# Create admin user via Rails console
+docker compose exec backend bundle exec rails console
+
+# In console:
+user = User.find_by(email: 'admin@example.com')
+user.update!(admin: true)
+
+# Or use rake task:
+docker compose exec backend bundle exec rake admin:make_admin[admin@example.com]
+```
+
+#### Dashboard Features
+- **Queue Monitoring**: View active, pending, and failed jobs
+- **Job Details**: Inspect job arguments, execution time, and errors
+- **Retry Management**: Manually retry failed jobs
+- **Performance Metrics**: Job processing statistics and trends
+- **Worker Information**: Active Sidekiq processes and thread usage
+
+### Monitoring & Management
+
+#### Docker Services
+```bash
+# View Sidekiq logs
+docker compose logs sidekiq
+
+# Restart Sidekiq service
+docker compose restart sidekiq
+
+# Scale Sidekiq workers
+docker compose up --scale sidekiq=3
+```
+
+#### Job Management
+```bash
+# Clear all jobs
+docker compose exec backend bundle exec rails runner "Sidekiq::Queue.new.clear"
+
+# Clear failed jobs
+docker compose exec backend bundle exec rails runner "Sidekiq::RetrySet.new.clear"
+
+# View queue stats
+docker compose exec backend bundle exec rails runner "
+  require 'sidekiq/api'
+  puts 'Queues:'
+  Sidekiq::Queue.all.each { |q| puts "  #{q.name}: #{q.size}" }
+  puts "Failed: #{Sidekiq::DeadSet.new.size}"
+  puts "Retry: #{Sidekiq::RetrySet.new.size}"
+"
+```
+
+#### Testing Jobs
+```ruby
+# In Rails console or test files
+require 'sidekiq/testing'
+
+# Inline mode - execute jobs immediately
+Sidekiq::Testing.inline! do
+  WelcomeEmailJob.perform_later(user.id)
+end
+
+# Fake mode - capture jobs without executing
+Sidekiq::Testing.fake! do
+  WelcomeEmailJob.perform_later(user.id)
+  assert_equal 1, WelcomeEmailJob.jobs.size
+end
+```
+
+### Environment Variables
+
+```bash
+# Redis Configuration
+REDIS_URL=redis://redis:6379/0
+
+# Sidekiq Dashboard (optional, defaults to Devise authentication)
+SIDEKIQ_USERNAME=admin
+SIDEKIQ_PASSWORD=password
+```
+
+### Production Considerations
+
+1. **Redis Persistence**: Configure Redis with appropriate persistence settings
+2. **Memory Management**: Monitor Redis memory usage and configure limits
+3. **Worker Scaling**: Adjust Sidekiq worker count based on job volume
+4. **Job Retention**: Configure job history retention policies
+5. **Monitoring**: Set up alerts for failed jobs and queue backlogs
+
+### Common Job Patterns
+
+#### Email Jobs
+```ruby
+class EmailJob < ApplicationJob
+  queue_as :emails
+  
+  def perform(user_id, template, options = {})
+    user = User.find(user_id)
+    EmailService.new(user, template, options).deliver
+  end
+end
+```
+
+#### Data Processing Jobs
+```ruby
+class DataProcessingJob < ApplicationJob
+  queue_as :data_processing
+  
+  def perform(file_path)
+    DataProcessor.new(file_path).process
+  end
+end
+```
+
+#### Cleanup Jobs
+```ruby
+class CleanupJob < ApplicationJob
+  queue_as :maintenance
+  
+  def perform
+    User.where('created_at < ?', 30.days.ago).destroy_all
+  end
+end
+```
+
+## ⚙️ Configuration
+
 ### Database Configuration
 
 ```yaml
@@ -287,6 +533,9 @@ POSTGRES_USER=postgres
 POSTGRES_PASSWORD=postgres
 POSTGRES_HOST=db
 POSTGRES_DB=backend_development
+
+# Redis Configuration
+REDIS_URL=redis://redis:6379/0
 
 # Rails Configuration
 RAILS_ENV=development

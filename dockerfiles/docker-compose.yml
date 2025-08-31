@@ -5,18 +5,41 @@ services:
     build:
       context: ../src/backend
       dockerfile: Dockerfile.dev
-    command: ["/bin/bash", "-c", "./wait-for-postgres.sh db bundle exec rails server -b 0.0.0.0 -p 3000"]
+    command: ["/bin/bash", "-c", "./wait-for-services.sh bundle exec rails server -b 0.0.0.0 -p 3000"]
     ports:
       - "3000:3000"
     volumes:
       - ../src/backend:/app
-      - ../src/backend/wait-for-postgres.sh:/app/wait-for-postgres.sh
+      - ../src/backend/wait-for-services.sh:/app/wait-for-services.sh
     environment:
       - RAILS_ENV=development
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
+      - REDIS_URL=redis://redis:6379/0
+      - SIDEKIQ_USERNAME=admin
+      - SIDEKIQ_PASSWORD=password
     depends_on:
       - db
+      - redis
+    networks:
+      - app-network
+
+  sidekiq:
+    build:
+      context: ../src/backend
+      dockerfile: Dockerfile.dev
+    command: ["/bin/bash", "-c", "./wait-for-services.sh bundle exec sidekiq"]
+    volumes:
+      - ../src/backend:/app
+      - ../src/backend/wait-for-services.sh:/app/wait-for-services.sh
+    environment:
+      - RAILS_ENV=development
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - db
+      - redis
     networks:
       - app-network
 
@@ -51,9 +74,19 @@ services:
     networks:
       - app-network
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+
 networks:
   app-network:
     driver: bridge
 
 volumes:
   postgres_data:
+  redis_data:

@@ -7,7 +7,12 @@ class Users::RegistrationsController < Devise::RegistrationsController
 
   # POST /resource
   def create
-    super
+    super do |resource|
+      if resource.persisted?
+        # Enqueue welcome email job
+        WelcomeEmailJob.perform_later(resource.id)
+      end
+    end
   end
 
   # PUT /resource
