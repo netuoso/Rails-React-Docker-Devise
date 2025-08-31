@@ -9,13 +9,20 @@ A modern full-stack web application built with Ruby on Rails API backend, React 
 git clone https://github.com/netuoso/Rails-React-Docker-Devise
 cd Rails-React-Docker-Devise
 
-# Start all services with Docker Compose
+# For basic setup (main branch)
+docker compose -f dockerfiles/docker-compose.yml up --build
+
+# For background jobs support **(background-jobs branch)**
+git checkout background-jobs
 docker compose -f dockerfiles/docker-compose.yml up --build
 
 # Access the applications
 # Frontend: http://localhost:3001
 # Backend API: http://localhost:3000
+# Backend Dashboard: http://localhost:3000 (login/logout/admin tools)
 # Database: localhost:5432
+# Redis: localhost:6379 **(background-jobs branch)**
+# Sidekiq Dashboard: http://localhost:3000/sidekiq (admin users only)
 ```
 
 ## 📋 Table of Contents
@@ -41,13 +48,22 @@ docker compose -f dockerfiles/docker-compose.yml up --build
 - **Session Persistence** across browser refreshes
 - **CORS Configuration** for cross-origin requests
 - **CSRF Protection** configured for API endpoints
+- **Admin User System** with role-based access control **(background-jobs branch)**
 
 ### 🎨 User Interface
 - **Modern React Frontend** with responsive design
 - **Navigation System** with user dropdown menu
 - **Authentication Forms** with error handling
 - **Home Dashboard** with personalized welcome messages
+- **Rails Web Dashboard** with login/logout and admin tools **(background-jobs branch)**
 - **Component-based Architecture** for maintainability
+
+### ⚡ Background Processing **(background-jobs branch)**
+- **Redis** for job queue and caching
+- **Sidekiq** for asynchronous background job processing
+- **Admin-only Sidekiq Dashboard** for job monitoring
+- **Docker Orchestration** with Redis and Sidekiq services
+- **Welcome Email Jobs** on user registration
 
 ### 🐳 Development Experience
 - **Docker Compose** orchestration for all services
@@ -73,6 +89,8 @@ docker compose -f dockerfiles/docker-compose.yml up --build
 
 ### Database & DevOps
 - **PostgreSQL 15** - Primary database
+- **Redis 7** - Job queue and caching **(background-jobs branch)**
+- **Sidekiq** - Background job processing **(background-jobs branch)**
 - **Docker & Docker Compose** - Containerization
 - **Webpack Dev Server** - Frontend development server
 
@@ -327,6 +345,38 @@ docker compose -f dockerfiles/docker-compose.yml exec backend bundle exec rails 
 - **Development**: Hot reloading, debug mode, local database
 - **Staging**: Production-like setup with test data
 - **Production**: Optimized builds, external services, monitoring
+
+## 🌟 Feature Branches
+
+### background-jobs Branch
+The `background-jobs` branch extends the main application with asynchronous job processing capabilities:
+
+#### Additional Features
+- **Redis Integration**: Message broker and job queue storage
+- **Sidekiq Worker**: Multi-threaded background job processor  
+- **Admin Dashboard**: Secure Sidekiq web interface for job monitoring
+- **Welcome Email Jobs**: Automated email sending on user registration
+- **Docker Services**: Redis and Sidekiq containers with proper orchestration
+
+#### Quick Setup
+```bash
+git checkout background-jobs
+docker compose -f dockerfiles/docker-compose.yml up --build
+
+# Create an admin user to access Sidekiq dashboard
+docker compose exec backend bundle exec rails runner "User.create!(email: 'admin@example.com', password: 'password', admin: true)"
+```
+
+#### Additional Services
+| Service | Port | Description |
+|---------|------|-------------|
+| **redis** | 6379 | Redis server for job queue |
+| **sidekiq** | - | Background job worker |
+
+#### Admin Features
+- Access Sidekiq dashboard at `/sidekiq` (admin users only)
+- Monitor job queues, failed jobs, and worker performance
+- Admin user management with rake tasks
 
 ## 📄 License
 
