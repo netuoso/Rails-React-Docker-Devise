@@ -6,7 +6,7 @@ A modern full-stack web application built with Ruby on Rails API backend, React 
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/netuoso/Rails-React-Docker-Devise
 cd Rails-React-Docker-Devise
 
 # Start all services with Docker Compose
