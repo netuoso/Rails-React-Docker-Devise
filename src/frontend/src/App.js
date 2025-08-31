@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Navbar } from './components';
-import { Home, Register, Login } from './pages';
+import { Home, Register, Login, Profile } from './pages';
 import './App.css';
 
 function App() {
@@ -52,6 +52,8 @@ function App() {
         return <Login onAuth={handleAuth} />;
       case 'register':
         return <Register onAuth={handleAuth} />;
+      case 'profile':
+        return <Profile userEmail={userEmail} onLogout={handleLogout} />;
       default:
         return <Home userEmail={isAuthenticated ? userEmail : null} />;
     }

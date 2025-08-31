@@ -45,6 +45,15 @@ function Navbar({ isAuthenticated, userEmail, onLogout, onNavigate }) {
               <div className="dropdown-menu">
                 <button 
                   className="dropdown-item" 
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    onNavigate('profile');
+                  }}
+                >
+                  Profile
+                </button>
+                <button 
+                  className="dropdown-item" 
                   onClick={handleLogout}
                 >
                   Logout
