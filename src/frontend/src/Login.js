@@ -23,7 +23,9 @@ function Login({ onAuth }) {
         setError(data.error || 'Login failed');
         return;
       }
-      onAuth && onAuth();
+  // Get JWT from Authorization header
+  const token = res.headers.get('Authorization');
+  onAuth && onAuth(token);
     } catch (err) {
       setError('Network error');
     }

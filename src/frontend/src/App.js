@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Register from './Register';
 import Login from './Login';
 import './App.css';
@@ -8,15 +8,34 @@ function App() {
   const [page, setPage] = useState('login');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const handleAuth = () => {
-    setIsAuthenticated(true);
+  // Restore auth state from localStorage on mount
+  useEffect(() => {
+    const token = localStorage.getItem('jwtToken');
+    if (token) {
+      setIsAuthenticated(true);
+    }
+  }, []);
+
+  // Called on successful login/register, saves JWT and sets auth state
+  const handleAuth = (token) => {
+    if (token) {
+      localStorage.setItem('jwtToken', token);
+      setIsAuthenticated(true);
+    }
+  };
+
+  // Logout: remove token and reset auth state
+  const handleLogout = () => {
+    localStorage.removeItem('jwtToken');
+    setIsAuthenticated(false);
+    setPage('login');
   };
 
   if (isAuthenticated) {
     return (
       <div className="App">
         <h2>Welcome!</h2>
-        <button onClick={() => setIsAuthenticated(false)}>Logout</button>
+        <button onClick={handleLogout}>Logout</button>
       </div>
     );
   }
