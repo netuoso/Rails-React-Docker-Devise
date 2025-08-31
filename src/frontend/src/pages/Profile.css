@@ -165,6 +165,16 @@
   line-height: 1.6;
 }
 
+.delete-password-input {
+  border-color: #e74c3c !important;
+  margin-bottom: 1rem;
+}
+
+.delete-password-input:focus {
+  border-color: #c0392b !important;
+  box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1) !important;
+}
+
 @media (max-width: 768px) {
   .profile-container {
     padding: 1rem;

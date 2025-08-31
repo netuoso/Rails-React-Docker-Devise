@@ -17,7 +17,34 @@ class Users::RegistrationsController < Devise::RegistrationsController
 
   # DELETE /resource
   def destroy
-    super
+    # Verify current password before deletion
+    current_password = params[:user]&.[](:current_password)
+    
+    unless current_password.present?
+      render json: {
+        errors: ['Current password is required to delete account']
+      }, status: :unprocessable_entity
+      return
+    end
+
+    unless resource.valid_password?(current_password)
+      render json: {
+        errors: ['Current password is incorrect']
+      }, status: :unprocessable_entity
+      return
+    end
+
+    resource.destroy
+    yield resource if block_given?
+    if resource.destroyed?
+      render json: {
+        message: 'Account deleted successfully.'
+      }, status: :ok
+    else
+      render json: {
+        errors: resource.errors.full_messages
+      }, status: :unprocessable_entity
+    end
   end
 
   protected
@@ -25,6 +52,10 @@ class Users::RegistrationsController < Devise::RegistrationsController
   # If you have extra params to permit, append them to the sanitizer.
   def configure_account_update_params
     devise_parameter_sanitizer.permit(:account_update, keys: [:current_password, :password, :password_confirmation])
+  end
+
+  def configure_account_deletion_params
+    devise_parameter_sanitizer.permit(:account_update, keys: [:current_password])
   end
 
   private

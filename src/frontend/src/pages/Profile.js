@@ -5,6 +5,7 @@ function Profile({ userEmail, onLogout }) {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [deletePassword, setDeletePassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -65,11 +66,18 @@ function Profile({ userEmail, onLogout }) {
   };
 
   const handleDeleteAccount = async () => {
+    if (!deletePassword.trim()) {
+      setError('Please enter your current password to delete your account');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
       return;
     }
 
     setLoading(true);
+    setError('');
+    setSuccess('');
 
     try {
       const token = localStorage.getItem('jwtToken');
@@ -77,16 +85,33 @@ function Profile({ userEmail, onLogout }) {
         method: 'DELETE',
         headers: {
           'Authorization': token,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
+        body: JSON.stringify({
+          user: {
+            current_password: deletePassword
+          }
+        }),
         credentials: 'include',
       });
 
       if (res.ok) {
-        localStorage.removeItem('jwtToken');
-        localStorage.removeItem('userEmail');
-        onLogout();
+        // Show success message briefly before redirect
+        setSuccess('Account deleted successfully. Redirecting to home page...');
+        
+        // Clear the password field
+        setDeletePassword('');
+        
+        // Clear tokens and logout after a brief delay
+        setTimeout(() => {
+          localStorage.removeItem('jwtToken');
+          localStorage.removeItem('userEmail');
+          onLogout(); // This will redirect to home page
+        }, 2000);
       } else {
-        setError('Failed to delete account');
+        const data = await res.json();
+        setError(data.errors ? data.errors.join(', ') : 'Failed to delete account');
       }
     } catch (err) {
       setError('Network error. Please try again.');
@@ -167,10 +192,24 @@ function Profile({ userEmail, onLogout }) {
           <h2>Danger Zone</h2>
           <div className="danger-content">
             <p>Once you delete your account, there is no going back. Please be certain.</p>
+            
+            <div className="form-group">
+              <label htmlFor="deletePassword">Enter your current password to confirm deletion</label>
+              <input
+                type="password"
+                id="deletePassword"
+                placeholder="Current password"
+                value={deletePassword}
+                onChange={e => setDeletePassword(e.target.value)}
+                disabled={loading}
+                className="delete-password-input"
+              />
+            </div>
+            
             <button 
               onClick={handleDeleteAccount}
               className="btn btn-danger"
-              disabled={loading}
+              disabled={loading || !deletePassword.trim()}
             >
               {loading ? 'Deleting...' : 'Delete Account'}
             </button>
