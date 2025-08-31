@@ -23,9 +23,13 @@ function Login({ onAuth }) {
         setError(data.error || 'Login failed');
         return;
       }
-  // Get JWT from Authorization header
-  const token = res.headers.get('Authorization');
-  onAuth && onAuth(token);
+      
+      // Get JWT from Authorization header and user data from response
+      const token = res.headers.get('Authorization');
+      const userData = await res.json();
+      const userEmail = userData.email || email; // Use response email or fallback to input email
+      
+      onAuth && onAuth(token, userEmail);
     } catch (err) {
       setError('Network error');
     }

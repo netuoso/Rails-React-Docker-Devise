@@ -1,56 +1,75 @@
 
 import React, { useState, useEffect } from 'react';
+import Navbar from './Navbar';
+import Home from './Home';
 import Register from './Register';
 import Login from './Login';
 import './App.css';
 
 function App() {
-  const [page, setPage] = useState('login');
+  const [page, setPage] = useState('home');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [userEmail, setUserEmail] = useState('');
 
   // Restore auth state from localStorage on mount
   useEffect(() => {
     const token = localStorage.getItem('jwtToken');
-    if (token) {
+    const email = localStorage.getItem('userEmail');
+    if (token && email) {
       setIsAuthenticated(true);
+      setUserEmail(email);
     }
   }, []);
 
   // Called on successful login/register, saves JWT and sets auth state
-  const handleAuth = (token) => {
-    if (token) {
+  const handleAuth = (token, email) => {
+    if (token && email) {
       localStorage.setItem('jwtToken', token);
+      localStorage.setItem('userEmail', email);
       setIsAuthenticated(true);
+      setUserEmail(email);
+      setPage('home');
     }
   };
 
   // Logout: remove token and reset auth state
   const handleLogout = () => {
     localStorage.removeItem('jwtToken');
+    localStorage.removeItem('userEmail');
     setIsAuthenticated(false);
-    setPage('login');
+    setUserEmail('');
+    setPage('home');
   };
 
-  if (isAuthenticated) {
-    return (
-      <div className="App">
-        <h2>Welcome!</h2>
-        <button onClick={handleLogout}>Logout</button>
-      </div>
-    );
-  }
+  // Handle navigation
+  const handleNavigate = (newPage) => {
+    setPage(newPage);
+  };
+
+  const renderPage = () => {
+    switch (page) {
+      case 'home':
+        return <Home userEmail={isAuthenticated ? userEmail : null} />;
+      case 'login':
+        return <Login onAuth={handleAuth} />;
+      case 'register':
+        return <Register onAuth={handleAuth} />;
+      default:
+        return <Home userEmail={isAuthenticated ? userEmail : null} />;
+    }
+  };
 
   return (
     <div className="App">
-      <div className="auth-nav">
-        <button onClick={() => setPage('login')}>Login</button>
-        <button onClick={() => setPage('register')}>Register</button>
-      </div>
-      {page === 'login' ? (
-        <Login onAuth={handleAuth} />
-      ) : (
-        <Register onAuth={handleAuth} />
-      )}
+      <Navbar 
+        isAuthenticated={isAuthenticated}
+        userEmail={userEmail}
+        onLogout={handleLogout}
+        onNavigate={handleNavigate}
+      />
+      <main className="main-content">
+        {renderPage()}
+      </main>
     </div>
   );
 }
